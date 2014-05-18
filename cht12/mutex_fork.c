@@ -1,5 +1,6 @@
 #include "apue.h"
 #include <pthread.h>
+#include <errno.h>
 
 pthread_mutex_t lock1 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t lock2 = PTHREAD_MUTEX_INITIALIZER;
@@ -7,7 +8,7 @@ pthread_mutex_t lock2 = PTHREAD_MUTEX_INITIALIZER;
 void
 prepare(void)
 {
-    printf("preparing locks...\n");
+    printf("preparing locks mutex @lock1 @lock2...\n");
     pthread_mutex_lock(&lock1);
     pthread_mutex_lock(&lock2);
 }
@@ -15,29 +16,45 @@ prepare(void)
 void 
 parent(void)
 {
-    printf("parent unlocking locks...\n");
+    printf("parent unlocking mutex @lock1 @lock2...\n");
     pthread_mutex_unlock(&lock1);
-    pthread_mutex_unlock(&lock2);
+	pthread_mutex_unlock(&lock2);
 }
 
 void
 child(void)
 {
-    printf("child unlocking locks...\n");
+    printf("child unlocking mutex @lock1 @lock2...\n");
     pthread_mutex_unlock(&lock1);
-    pthread_mutex_unlock(&lock2);
+	 pthread_mutex_unlock(&lock2);
 }
 
 void *
 thr_fn(void *arg)
 {
-    printf("thread started...\n");
-    pthread_mutex_lock(&lock1);
-	pthread_mutex_lock(&lock2);
-	sleep(1);
-	pthread_mutex_unlock(&lock1);
-	pthread_mutex_unlock(&lock2);
-    return(0);
+	int err;
+	pid_t child_proc;
+	printf("thread start...\n");	
+	if((child_proc = fork()) < 0)
+		err_quit("fork error");
+	else if(child_proc == 0)
+	{
+		err = pthread_mutex_lock(&lock1);
+		if(err == 0)
+			printf("lock mutex @lock1 in child proc\n");
+		else
+			err_exit(err, "cant lock mutex @lock1 in child proc");
+		err = pthread_mutex_unlock(&lock1);
+		if(err == 0)
+			printf("unlock mutex @lock1 in child proc\n");
+		else
+			err_exit(err, "cant unlock mutex @lock1 in child proc");
+	}
+	else
+	{
+		;
+	}
+    pthread_exit(0);
 }
 
 int
@@ -51,18 +68,26 @@ main(void)
     printf("pthread_atfork is unsupported\n");
 #else
     if((err = pthread_atfork(prepare, parent, child)) != 0)
-        err_exit(err, "can't install fork handlers");
+        err_exit(err, "cant install fork handlers");
+	
+	err = pthread_mutex_lock(&lock1);
+	if(err == 0)
+		printf("lock mutex @lock1 in father proc 1st-therad\n");
+	else
+		err_exit(err, "cant lock mutex");
+
     err = pthread_create(&tid, NULL, thr_fn, 0);
     if(err != 0)
         err_exit(err, "can't create thread");
-    sleep(1);
-    printf("parent about to fork...\n");    
-    if((pid = fork()) < 0)
-        err_quit("fork failed");
-    else if(pid == 0)    /* child */
-        printf("child returned from fork\n");
-    else    /* parent */
-        printf("parent returned from fork\n");
+	
+	sleep(5);
+
+	err = pthread_mutex_unlock(&lock1);
+	if(err == 0)
+		printf("unlock mutex @lock1 in father proc 1st-thread\n");
+	else
+		err_exit(err, "cant unlcok mutex");
 #endif
-    exit(0);
+    //exit(0);
+	pthread_exit(0);
 }
